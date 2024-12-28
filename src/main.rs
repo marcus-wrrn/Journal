@@ -1,25 +1,105 @@
 use std::env;
+use std::path::Path;
 use std::process::Command;
+//use chrono::Utc;
 use dialoguer::{theme::ColorfulTheme, Select};
+use std::fs::OpenOptions;
 use std::fs;
+use std::io::Write;
+//use std::path::Path;
 use regex::Regex;
+
 
 const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries";
 
-fn open_file(filename: &str) {
-    let file = format!("{}/{}", ENTRY_DIR, filename);
+fn get_time() -> String {
+    let dt = chrono::offset::Local::now();
+    dt.to_rfc2822()
+}
 
-    let status = Command::new("vi").
-        arg(file)
+fn file_exists(filename: &str) -> bool {
+    let path = Path::new(filename);
+    path.exists()
+}
+
+fn initialize_file(filename: &str) {
+    let current_date = get_time();
+    let text = format!("{}\n\n=========================================================================================================\n", current_date);
+
+    let mut file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(filename)
+        .expect("Could not open file");
+
+    file.write(text.as_bytes()).expect("Could not add text to file");
+}
+
+fn open_file(filename: &str) {
+    if !file_exists(filename) {
+        println!("Initializing file!");
+        initialize_file(filename);
+    }
+
+    let status = Command::new("vim").
+        arg(filename)
         .status()
-        .expect("Failed to open Vi");
+        .expect("Failed to open Vim");
 
     if status.success() {
-        println!("Exited Vi successfully.");
+        println!("Exited Vim successfully.");
+        //encrypt_file(filename);
     } else {
         eprintln!("Did not close as expected");
     }
 }
+
+
+// fn encrypt_file(filename: &str) {
+//     let file = format!("{}/{}", ENTRY_DIR, filename);
+//     println!("Encrypt File: {}", file);
+//     //let cmd = format!("openssl enc -aes-256-cbc -salt -in {} -out {}", file, file);
+
+//     let status = Command::new("openssl")
+//         .arg("enc")
+//         .arg("-aes-256-cbc")
+//         .arg("-salt")
+//         .arg("-in")
+//         .arg(&file)
+//         .arg("-out")
+//         .arg(&file)
+//         .status()
+//         .expect("Failed to encrypt File");
+
+//     if status.success() {
+//         println!("File encrypted successfully");
+//     } else {
+//         eprintln!("Could not encrypt file");
+//     }
+// }
+
+// fn decrypt_file(filename: &str) {
+//     let file = format!("{}/{}", ENTRY_DIR, filename);
+//     println!("Decrypt File: {}", file);
+//     //let cmd = format!("openssl enc -d -aes-256-cbc -in {} -out {}", file, file);
+
+//     let status = Command::new("openssl")
+//         .arg("enc")
+//         .arg("-d")
+//         .arg("-aes-256-cbc")
+//         .arg("-in")
+//         .arg(&file)
+//         .arg("-out")
+//         .arg(&file)
+//         .status()
+//         .expect("Failed to Decrypt File");
+
+//     if status.success() {
+//         println!("File decrypted successfully");
+//     } else {
+//         eprintln!("Could not decrypt file");
+//     }
+// }
 
 fn get_files(dir: &str) -> Vec<String> {
     let files = fs::read_dir(dir)
@@ -56,10 +136,10 @@ fn add_entry() {
     }).collect();
 
     if let Some(largest) = numbers.iter().max() {
-        let filename = format!("Entry_{}.txt", largest + 1);
+        let filename = format!("{}/Entry_{}.txt", ENTRY_DIR, largest + 1);
         open_file(&filename);
     } else {
-        let filename = "Entry_1.txt";
+        let filename = format!("{}/Entry_1.txt", ENTRY_DIR);
         open_file(&filename);
     }
 
@@ -85,8 +165,8 @@ fn edit_entry() {
     if selection == files.len() - 1 {
         return;
     }
-
-    open_file(&files[selection]);
+    let filename = format!("{}/{}", ENTRY_DIR, &files[selection]);
+    open_file(&filename);
 }
 
 fn main() {
