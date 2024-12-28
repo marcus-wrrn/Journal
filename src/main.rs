@@ -66,12 +66,14 @@ fn add_entry() {
 }
 
 fn edit_entry() {
-    let files = get_files(ENTRY_DIR);
+    let mut files = get_files(ENTRY_DIR);
 
     if files.len() < 1 {
         println!("No files to edit");
         return;
     }
+
+    files.push("Exit".to_string());
 
     let selection = Select::with_theme(&ColorfulTheme::default())
     .with_prompt("=============Edit Files=============")
@@ -79,6 +81,10 @@ fn edit_entry() {
     .items(&files)
     .interact()
     .expect("Failed to display edit menu");
+
+    if selection == files.len() - 1 {
+        return;
+    }
 
     open_file(&files[selection]);
 }
@@ -91,7 +97,7 @@ fn main() {
         return;
     }
 
-    let options = vec!["Add Entry", "Edit Entry"];  
+    let options = vec!["Add Entry", "Edit Entry", "Exit"];  
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("=============Journal=============")
         .default(0)
@@ -107,7 +113,10 @@ fn main() {
         },
         1 => {
             edit_entry();
-        }
+        },
+        2 => {
+            return;
+        },
         _ => unreachable!(),
     }
 }
