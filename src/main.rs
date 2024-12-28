@@ -1,12 +1,10 @@
 use std::env;
 use std::path::Path;
 use std::process::Command;
-//use chrono::Utc;
 use dialoguer::{theme::ColorfulTheme, Select};
 use std::fs::OpenOptions;
 use std::fs;
 use std::io::Write;
-//use std::path::Path;
 use regex::Regex;
 
 
@@ -52,6 +50,11 @@ fn open_file(filename: &str) {
     } else {
         eprintln!("Did not close as expected");
     }
+}
+
+fn delete_file(filename: &str) -> std::io::Result<()> {
+    fs::remove_file(filename)?;
+    Ok(())
 }
 
 
@@ -169,6 +172,34 @@ fn edit_entry() {
     open_file(&filename);
 }
 
+fn delete_entry() {
+    let mut files = get_files(ENTRY_DIR);
+
+    if files.len() < 1 {
+        println!("No files to edit");
+        return;
+    }
+
+    files.push("Exit".to_string());
+
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("=============Edit Files=============")
+        .default(0)
+        .items(&files)
+        .interact()
+        .expect("Failed to display delete menu");
+
+    if selection == files.len() - 1 {
+        return;
+    }
+
+    let filename = format!("{}/{}", ENTRY_DIR, &files[selection]);
+
+    if let Err(e) = delete_file(&filename) {
+        eprintln!("Failed to delete file: {}", e);
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();  
 
@@ -177,7 +208,7 @@ fn main() {
         return;
     }
 
-    let options = vec!["Add Entry", "Edit Entry", "Exit"];  
+    let options = vec!["Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("=============Journal=============")
         .default(0)
@@ -195,6 +226,9 @@ fn main() {
             edit_entry();
         },
         2 => {
+            delete_entry();
+        },
+        3 => {
             return;
         },
         _ => unreachable!(),
