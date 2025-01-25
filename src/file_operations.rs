@@ -18,6 +18,15 @@ pub fn file_exists(filename: &str) -> bool {
     path.exists()
 }
 
+fn get_largest_number(conn: &Connection) -> u32 {
+    let mut stmt = conn.prepare("SELECT MAX(number) FROM entries").expect("Entries not found");
+    let largest_number: Option<u32> = stmt.query_row([], |row| row.get(0)).ok();
+    if let Some(number) = largest_number {
+        return number + 1;
+    }
+    1
+}
+
 pub fn initialize_file(filename: &str) {
     let current_date = get_time();
     let text = format!("{}\n\n=========================================================================================================\n", current_date);
@@ -118,6 +127,43 @@ impl Entry {
         })
     }
 
+    pub fn create_default(path_config: &PathConfig) -> Self {
+        let conn = Connection::open(&path_config.db).expect("Could not open DB");
+        let number = get_largest_number(&conn);
+        let entry_date = chrono::offset::Local::now();
+        let access_date = chrono::offset::Local::now();
+        let name = format!("Entry_{}.txt", number);
+        let path = path_config.get_entry_path(&name);
+        
+        Self {
+            name,
+            number: Some(number),
+            entry_date: Some(entry_date.into()),
+            access_date: Some(access_date.into()),
+            path
+        }
+    }
+
+    pub fn initialize(&self, path_config: &PathConfig) {
+        if file_exists(&self.path) {
+            return;
+        }
+        // Write text to file
+        initialize_file(&self.path);
+
+        // Add to db
+        self.publish_entry(path_config);
+
+    }
+
+    pub fn delete_entry(&mut self, path_config: &PathConfig) {
+        let conn = Connection::open(&path_config.db).expect("Could not open DB");
+        // Delete from database
+        conn.execute("DELETE FROM entries WHERE name = ?1", (self.name.clone(),)).expect("Could not delete entry from DB");
+        // Delete file
+        fs::remove_file(&self.path).expect("Could not delete file");
+    }
+
     pub fn entry_string(&self) -> String {
         if let Some(val) = self.entry_date {
             return val.to_rfc2822();
@@ -144,7 +190,18 @@ impl Entry {
                 .collect::<Vec<Entry>>()
     }
 
-    pub fn publish_entry(&self, path_config: &PathConfig) {
+    pub fn update_entry(&mut self, path_config: &PathConfig) {
+        let conn = Connection::open(&path_config.db).expect("Could not open DB");
+        self.access_date = Some(chrono::offset::Local::now().into());
+        if let Some(date) = self.access_date {
+            conn.execute(
+                "UPDATE entries SET access_date = ?1 WHERE name = ?2", 
+                (date.to_rfc2822(), self.name.clone()))
+                .expect("Could not update access_date in DB");
+        }
+    }
+
+    fn publish_entry(&self, path_config: &PathConfig) {
         let conn = Connection::open(&path_config.db).expect("Could not open DB when adding entry");
 
         let entry_string = self.entry_string();
@@ -162,9 +219,12 @@ impl Entry {
 }
 
 // Function to sort entries by `entry_date`
-pub fn sort_entries_by_date(entries: &mut Vec<Entry>) {
+pub fn sort_entries_by_date(entries: &mut Vec<Entry>, use_access: bool) {
     entries.sort_by(|a, b| {
-        match (a.entry_date, b.entry_date) {
+        let a_entry = if use_access { a.access_date } else { a.entry_date };
+        let b_entry = if use_access { b.access_date } else { b.entry_date };
+
+        match (a_entry, b_entry) {
             (Some(a_date), Some(b_date)) => a_date.cmp(&b_date), // Compare dates if both are present
             (Some(_), None) => std::cmp::Ordering::Less,         // Entries with a date come first
             (None, Some(_)) => std::cmp::Ordering::Greater,
@@ -172,6 +232,7 @@ pub fn sort_entries_by_date(entries: &mut Vec<Entry>) {
         }
     });
 }
+
 
 pub fn sort_entries_by_number(entries: &mut Vec<Entry>) {
     entries.sort_by(|a, b| {

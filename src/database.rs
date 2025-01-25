@@ -88,14 +88,3 @@ pub fn initialize_database(path_config: &PathConfig) {
     }
 }
 
-pub fn get_entries(path_config: &PathConfig) -> Vec<Entry> {
-    let conn = Connection::open(&path_config.db).expect("Could not open database");
-    let mut stmt = conn.prepare("SELECT * FROM entries").expect("Could not select entries in DB");
-    let entries = stmt.query_map([], |row| {
-        Entry::build_from_row(&path_config.entry_dir, &row)
-    }).expect("Error reading entries");
-
-    entries.into_iter()
-            .filter_map(|val| val.ok())
-            .collect::<Vec<Entry>>()
-}

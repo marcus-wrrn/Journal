@@ -1,24 +1,23 @@
 use std::env;
 use std::process::Command;
 use dialoguer::{theme::ColorfulTheme, Select};
-use std::fs;
 
 pub mod file_operations;
 pub mod database;
 
-use file_operations::{file_exists, initialize_file, get_files, extract_number};
+use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, Entry};
 use database::{initialize_database, PathConfig};
 
 const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries";
 
-fn open_file(filename: &str) {
-    if !file_exists(filename) {
+fn open_file(filepath: &str) {
+    if !file_exists(filepath) {
         println!("Initializing file!");
-        initialize_file(filename);
+        initialize_file(filepath);
     }
 
     let status = Command::new("vim").
-        arg(filename)
+        arg(filepath)
         .status()
         .expect("Failed to open Vim");
 
@@ -30,78 +29,82 @@ fn open_file(filename: &str) {
     }
 }
 
-fn delete_file(filename: &str) -> std::io::Result<()> {
-    fs::remove_file(filename)?;
-    Ok(())
+fn add_entry(path_config: &PathConfig) {
+    let entry = Entry::create_default(path_config);
+    entry.initialize(path_config);
+    open_file(&entry.path);
 }
 
-fn add_entry() {
-    let files = get_files(ENTRY_DIR);
+fn edit_entry(path_config: &PathConfig) {
+    let mut entries = Entry::get_entries(&path_config);
+    sort_entries_by_number(&mut entries);
 
-    let numbers: Vec<u32> = files.iter().filter_map(|f|{
-        extract_number(f)
-    }).collect();
-
-    if let Some(largest) = numbers.iter().max() {
-        let filename = format!("{}/Entry_{}.txt", ENTRY_DIR, largest + 1);
-        open_file(&filename);
-    } else {
-        let filename = format!("{}/Entry_1.txt", ENTRY_DIR);
-        open_file(&filename);
-    }
-
-}
-
-fn edit_entry() {
-    let mut files = get_files(ENTRY_DIR);
-
-    if files.len() < 1 {
+    if entries.len() < 1 {
         println!("No files to edit");
         return;
     }
+    
+    let mut filenames = entries.iter().map(|e| e.name.clone()).collect::<Vec<String>>();
 
-    files.push("Exit".to_string());
+    filenames.push("Exit".to_string());
 
     let selection = Select::with_theme(&ColorfulTheme::default())
     .with_prompt("=============Edit Files=============")
     .default(0)
-    .items(&files)
+    .items(&filenames)
     .interact()
     .expect("Failed to display edit menu");
 
-    if selection == files.len() - 1 {
+    if selection == filenames.len() - 1 {
         return;
     }
-    let filename = format!("{}/{}", ENTRY_DIR, &files[selection]);
-    open_file(&filename);
+    let entry = &mut entries[selection];
+    entry.update_entry(path_config);
+
+    open_file(&entry.path);
 }
 
-fn delete_entry() {
-    let mut files = get_files(ENTRY_DIR);
+fn delete_entry(path_config: &PathConfig) {
+    let mut entries = Entry::get_entries(path_config);
 
-    if files.len() < 1 {
+    if entries.len() < 1 {
         println!("No files to edit");
         return;
     }
 
-    files.push("Exit".to_string());
+    let mut filenames = entries.iter().map(|e| e.name.clone()).collect::<Vec<String>>();
+    filenames.push("Exit".to_string());
 
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("=============Edit Files=============")
         .default(0)
-        .items(&files)
+        .items(&filenames)
         .interact()
         .expect("Failed to display delete menu");
 
-    if selection == files.len() - 1 {
+    if selection == filenames.len() - 1 {
         return;
     }
+    let entry = &mut entries[selection];
+    entry.delete_entry(path_config);
+}
 
-    let filename = format!("{}/{}", ENTRY_DIR, &files[selection]);
+fn last_accessed(path_config: &PathConfig) {
+    let entries = Entry::get_entries(&path_config);
 
-    if let Err(e) = delete_file(&filename) {
-        eprintln!("Failed to delete file: {}", e);
-    }
+    // Filter out old entries
+    let mut entries = entries.into_iter().filter_map(|e| {
+        if e.access_date.is_some() {
+            return Some(e);
+        }
+        None
+    }).collect::<Vec<Entry>>();
+
+    sort_entries_by_date(&mut entries, true);
+    let index = entries.len() - 1;
+    let entry = &mut entries[index];
+    entry.update_entry(path_config);
+    open_file(&entry.path);
 }
 
 
@@ -120,7 +123,7 @@ fn main() {
         return;
     }
 
-    let options = vec!["Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
+    let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("=============Journal=============")
         .default(0)
@@ -128,19 +131,21 @@ fn main() {
         .interact()
         .expect("Failed to display menu");
 
-    //let mut exit: bool = false;
     
     match  selection {
         0 => {
-            add_entry();
-        },
+            last_accessed(&config);
+        }
         1 => {
-            edit_entry();
+            add_entry(&config);
         },
         2 => {
-            delete_entry();
+            edit_entry(&config);
         },
         3 => {
+            delete_entry(&config);
+        },
+        4 => {
             return;
         },
         _ => unreachable!(),
