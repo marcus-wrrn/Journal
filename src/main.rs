@@ -8,7 +8,7 @@ pub mod database;
 use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, Entry};
 use database::{initialize_database, PathConfig};
 
-const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries";
+const ENTRY_DIR: &str = "/home/marcus/Documents/entries";
 
 fn open_file(filepath: &str) {
     if !file_exists(filepath) {
@@ -107,6 +107,14 @@ fn last_accessed(path_config: &PathConfig) {
     open_file(&entry.path);
 }
 
+fn get_entries(entries: Vec<Entry>, name: &str) -> Option<Entry> {
+    for entry in entries {
+        if name == entry.name {
+            return Some(entry);
+        }
+    }
+    None
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();  
@@ -118,8 +126,17 @@ fn main() {
             initialize_database(&config);
             return;
         }
-        let filename = format!("{}/{}", ENTRY_DIR, &args[1]);
-        open_file(&filename);
+
+        let entries = Entry::get_entries(&config);
+        if let Some(mut entry) = get_entries(entries, &args[1]) {
+            entry.update_entry(&config);
+            open_file(&entry.name);
+        } else {
+            let entry = Entry::create_custom(&config, &args[1]);
+            entry.initialize(&config);
+            open_file(&entry.name);
+        }
+        
         return;
     }
 

@@ -144,6 +144,20 @@ impl Entry {
         }
     }
 
+    pub fn create_custom(path_config: &PathConfig, name: &str) -> Self {
+        let entry_date = chrono::offset::Local::now();
+        let access_date = chrono::offset::Local::now();
+        let path = path_config.get_entry_path(&name);
+
+        Self {
+            name: name.to_string(),
+            number: None,
+            entry_date: Some(entry_date.into()),
+            access_date: Some(access_date.into()),
+            path
+        }
+    }
+
     pub fn initialize(&self, path_config: &PathConfig) {
         if file_exists(&self.path) {
             return;
