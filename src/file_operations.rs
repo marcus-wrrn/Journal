@@ -247,6 +247,14 @@ pub fn sort_entries_by_date(entries: &mut Vec<Entry>, use_access: bool) {
     });
 }
 
+pub fn get_entry(entries: Vec<Entry>, name: &str) -> Option<Entry> {
+    for entry in entries {
+        if name == entry.name {
+            return Some(entry);
+        }
+    }
+    None
+}
 
 pub fn sort_entries_by_number(entries: &mut Vec<Entry>) {
     entries.sort_by(|a, b| {

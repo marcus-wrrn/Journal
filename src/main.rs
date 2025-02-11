@@ -5,7 +5,7 @@ use dialoguer::{theme::ColorfulTheme, Select};
 pub mod file_operations;
 pub mod database;
 
-use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, Entry};
+use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, get_entry, Entry};
 use database::{initialize_database, PathConfig};
 
 const ENTRY_DIR: &str = "/home/marcus/Documents/entries";
@@ -107,15 +107,6 @@ fn last_accessed(path_config: &PathConfig) {
     open_file(&entry.path);
 }
 
-fn get_entries(entries: Vec<Entry>, name: &str) -> Option<Entry> {
-    for entry in entries {
-        if name == entry.name {
-            return Some(entry);
-        }
-    }
-    None
-}
-
 fn main() {
     let args: Vec<String> = env::args().collect();  
     let config = PathConfig::new(ENTRY_DIR);
@@ -128,7 +119,7 @@ fn main() {
         }
 
         let entries = Entry::get_entries(&config);
-        if let Some(mut entry) = get_entries(entries, &args[1]) {
+        if let Some(mut entry) = get_entry(entries, &args[1]) {
             entry.update_entry(&config);
             open_file(&entry.name);
         } else {
@@ -140,31 +131,33 @@ fn main() {
         return;
     }
 
-    let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
-    let selection = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("=============Journal=============")
-        .default(0)
-        .items(&options)
-        .interact()
-        .expect("Failed to display menu");
-
+    let mut selection = 0; 
+    loop {
+        let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
+        selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("=============Journal=============")
+            .default(selection)
+            .items(&options)
+            .interact()
+            .expect("Failed to display menu");
     
-    match  selection {
-        0 => {
-            last_accessed(&config);
+        match  selection {
+            0 => {
+                last_accessed(&config);
+            }
+            1 => {
+                add_entry(&config);
+            },
+            2 => {
+                edit_entry(&config);
+            },
+            3 => {
+                delete_entry(&config);
+            },
+            4 => {
+                return;
+            },
+            _ => unreachable!(),
         }
-        1 => {
-            add_entry(&config);
-        },
-        2 => {
-            edit_entry(&config);
-        },
-        3 => {
-            delete_entry(&config);
-        },
-        4 => {
-            return;
-        },
-        _ => unreachable!(),
     }
 }
