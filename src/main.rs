@@ -121,11 +121,11 @@ fn main() {
         let entries = Entry::get_entries(&config);
         if let Some(mut entry) = get_entry(entries, &args[1]) {
             entry.update_entry(&config);
-            open_file(&entry.name);
+            open_file(&entry.path);
         } else {
             let entry = Entry::create_custom(&config, &args[1]);
             entry.initialize(&config);
-            open_file(&entry.name);
+            open_file(&entry.path);
         }
         
         return;
