@@ -48,45 +48,60 @@ fn edit_entry(path_config: &PathConfig) {
 
     filenames.push("Exit".to_string());
 
-    let selection = Select::with_theme(&ColorfulTheme::default())
-    .with_prompt("=============Edit Files=============")
-    .default(0)
-    .items(&filenames)
-    .interact()
-    .expect("Failed to display edit menu");
+    let mut selection = 0;
+    loop {
+        selection = match Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("=============Edit Files=============")
+        .default(selection)
+        .items(&filenames)
+        .interact_opt() {
+            Ok(Some(choice)) => choice,
+            _ => return
+        };
 
-    if selection == filenames.len() - 1 {
-        return;
+        if selection == filenames.len() - 1 {
+            return;
+        }
+        let entry = &mut entries[selection];
+        entry.update_entry(path_config);
+
+        open_file(&entry.path);
     }
-    let entry = &mut entries[selection];
-    entry.update_entry(path_config);
-
-    open_file(&entry.path);
+    
 }
 
 fn delete_entry(path_config: &PathConfig) {
-    let mut entries = Entry::get_entries(path_config);
+    
 
-    if entries.len() < 1 {
-        println!("No files to edit");
-        return;
-    }
+    let mut selection = 0;
+    loop {
+        let mut entries = Entry::get_entries(path_config);
 
-    let mut filenames = entries.iter().map(|e| e.name.clone()).collect::<Vec<String>>();
-    filenames.push("Exit".to_string());
+        if entries.len() < 1 {
+            println!("No files to edit");
+            return;
+        }
 
-    let selection = Select::with_theme(&ColorfulTheme::default())
+        let mut filenames = entries.iter().map(|e| e.name.clone()).collect::<Vec<String>>();
+        filenames.push("Exit".to_string());
+
+        selection = match Select::with_theme(&ColorfulTheme::default())
         .with_prompt("=============Edit Files=============")
-        .default(0)
+        .default(selection)
         .items(&filenames)
-        .interact()
-        .expect("Failed to display delete menu");
+        .interact_opt() {
+            Ok(Some(choice)) => choice,
+            _ => return
+        };
 
-    if selection == filenames.len() - 1 {
-        return;
+        if selection == filenames.len() - 1 {
+            return;
+        }
+        let entry = &mut entries[selection];
+        entry.delete_entry(path_config);
+        selection -= 1;
     }
-    let entry = &mut entries[selection];
-    entry.delete_entry(path_config);
+    
 }
 
 fn last_accessed(path_config: &PathConfig) {
@@ -132,15 +147,17 @@ fn main() {
     }
 
     let mut selection = 0; 
+    let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
     loop {
-        let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
-        selection = Select::with_theme(&ColorfulTheme::default())
+        selection = match Select::with_theme(&ColorfulTheme::default())
             .with_prompt("=============Journal=============")
             .default(selection)
             .items(&options)
-            .interact()
-            .expect("Failed to display menu");
-    
+            .interact_opt() {
+                Ok(Some(choice)) => choice,
+                _ => return
+            };
+
         match  selection {
             0 => {
                 last_accessed(&config);
