@@ -37,6 +37,86 @@ impl PathConfig {
     }
 }
 
+pub struct EntryDB {
+    pub conn: Connection
+}
+
+impl EntryDB {
+    pub fn initialize(db_path: &str) -> Self {
+        Self {
+            conn: Connection::open(db_path).expect("Could not open Database")
+        }
+    }
+
+    pub fn init_tables(&self) {
+        self.conn.execute("
+            CREATE TABLE IF NOT EXISTS entries (
+                number INTEGER UNIQUE,
+                name TEXT PRIMARY KEY NOT NULL,
+                entry_date TEXT,
+                access_date TEXT
+            )
+        ", ()).expect("Could not add table");
+    
+        self.conn.execute("
+            CREATE TABLE IF NOT EXISTS tags (
+                name TEXT PRIMARY KEY
+            )
+        ", ()).expect("Could not add tags table");
+    
+        self.conn.execute("
+            CREATE TABLE IF NOT EXISTS entry_tags (
+                tag TEXT,
+                entry TEXT,
+                PRIMARY KEY (entry, tag),
+                FOREIGN KEY (tag) REFERENCES tags (name) ON DELETE CASCADE,
+                FOREIGN KEY (entry) REFERENCES entries (name) ON DELETE CASCADE
+            )
+        ", ()).expect("Could not add tag reference table");
+    }
+
+    pub fn rebuild_database(&self, path_config: &PathConfig) {
+        self.init_tables();
+    
+        let files = path_config.get_file();
+    
+        let mut entries = files.iter()
+            .map(|f| Entry::from_file(&path_config.entry_dir, f))
+            .collect::<Vec<Entry>>();
+    
+        // load into database
+    
+        sort_entries_by_number(&mut entries);
+    
+        for entry in entries {
+            let entry_string = entry.entry_string();
+            let access_string = entry.access_string();
+            
+            if let Some(number) = entry.number {
+                self.conn.execute(
+                    "INSERT INTO entries (number, name, entry_date, access_date) VALUES (?1, ?2, ?3, ?4)", 
+                    (number, entry.name, entry_string, access_string)).expect("Could not add table");
+            } else {
+                self.conn.execute(
+                    "INSERT INTO entries (name, entry_date, access_date) VALUES (?1, ?2, ?3)", 
+                    (entry.name, entry_string, access_string)).expect("Could not add table");
+            }
+            
+        }
+    
+        let mut stmt = self.conn.prepare("SELECT * FROM entries").expect("Entries not found");
+    
+        let entry_rows = stmt.query_map([], |row| {
+            let entry = Entry::build_from_row(&path_config.entry_dir, &row);
+            entry
+        }).expect("Error reading rows");
+        
+        for row in entry_rows {
+            println!("Found row: {:?}", row.unwrap());
+        }
+    }
+}
+
 
 pub fn initialize_database(path_config: &PathConfig) {
     let conn = Connection::open(&path_config.db).expect("Could not initialize database");
@@ -49,6 +129,22 @@ pub fn initialize_database(path_config: &PathConfig) {
             access_date TEXT
         )
     ", ()).expect("Could not add table");
+
+    conn.execute("
+        CREATE TABLE IF NOT EXISTS tags (
+            name TEXT PRIMARY KEY
+        )
+    ", ()).expect("Could not add tags table");
+
+    conn.execute("
+        CREATE TABLE IF NOT EXISTS entry_tags (
+            tag TEXT,
+            entry TEXT,
+            PRIMARY KEY (entry, tag),
+            FOREIGN KEY (tag) REFERENCES tags (name) ON DELETE CASCADE,
+            FOREIGN KEY (entry) REFERENCES entries (name) ON DELETE CASCADE
+        )
+    ", ()).expect("Could not add tag reference table");
 
     let files = path_config.get_file();
 

@@ -8,7 +8,7 @@ pub mod database;
 use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, get_entry, Entry};
 use database::{initialize_database, PathConfig};
 
-const ENTRY_DIR: &str = "/home/marcus/Documents/entries";
+const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries";
 
 fn open_file(filepath: &str) {
     if !file_exists(filepath) {
