@@ -6,9 +6,9 @@ pub mod file_operations;
 pub mod database;
 
 use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, get_entry, Entry};
-use database::{initialize_database, PathConfig};
+use database::{EntryDB, PathConfig};
 
-const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries";
+const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries_test";
 
 fn open_file(filepath: &str) {
     if !file_exists(filepath) {
@@ -29,14 +29,13 @@ fn open_file(filepath: &str) {
     }
 }
 
-fn add_entry(path_config: &PathConfig) {
-    let entry = Entry::create_default(path_config);
-    entry.initialize(path_config);
+fn add_entry(db: &EntryDB) {
+    let entry = db.create_default_entry();
     open_file(&entry.path);
 }
 
-fn edit_entry(path_config: &PathConfig) {
-    let mut entries = Entry::get_entries(&path_config);
+fn edit_entry(db: &EntryDB) {
+    let mut entries = db.get_entries();
     sort_entries_by_number(&mut entries);
 
     if entries.len() < 1 {
@@ -63,19 +62,17 @@ fn edit_entry(path_config: &PathConfig) {
             return;
         }
         let entry = &mut entries[selection];
-        entry.update_entry(path_config);
 
+        db.update_entry_access_date(entry);
         open_file(&entry.path);
     }
     
 }
 
-fn delete_entry(path_config: &PathConfig) {
-    
-
+fn delete_entry(db: &EntryDB) {
     let mut selection = 0;
     loop {
-        let mut entries = Entry::get_entries(path_config);
+        let mut entries = db.get_entries();
 
         if entries.len() < 1 {
             println!("No files to edit");
@@ -98,14 +95,14 @@ fn delete_entry(path_config: &PathConfig) {
             return;
         }
         let entry = &mut entries[selection];
-        entry.delete_entry(path_config);
+        db.delete_entry(entry);
         selection -= 1;
     }
     
 }
 
-fn last_accessed(path_config: &PathConfig) {
-    let entries = Entry::get_entries(&path_config);
+fn last_accessed(db: &EntryDB) {
+    let entries = db.get_entries();
 
     // Filter out old entries
     let mut entries = entries.into_iter().filter_map(|e| {
@@ -118,31 +115,42 @@ fn last_accessed(path_config: &PathConfig) {
     sort_entries_by_date(&mut entries, true);
     let index = entries.len() - 1;
     let entry = &mut entries[index];
-    entry.update_entry(path_config);
+    
+    db.update_entry_access_date(entry);
     open_file(&entry.path);
 }
 
+
+fn argument_handling(args: &Vec<String>, db: &EntryDB) {
+    match args[1].as_str() {
+        "--rebuild_db" => {
+            println!("Initializing Database!");
+            db.rebuild_database();
+        },
+        "--init_tables" => {
+            println!("Initializing tables");
+            db.init_tables();
+        }
+        _ => {
+            let entries = db.get_entries();
+            if let Some(mut entry) = get_entry(entries, &args[1]) {
+                db.update_entry_access_date(&mut entry);
+                open_file(&entry.path);
+            } else {
+                let entry = db.create_custom_entry(&args[1]);
+                open_file(&entry.path);
+            }
+        }
+    }
+}
+
+
 fn main() {
     let args: Vec<String> = env::args().collect();  
-    let config = PathConfig::new(ENTRY_DIR);
+    let db = EntryDB::new(PathConfig::new(ENTRY_DIR));
 
     if args.len() >= 2 {
-        if &args[1] == "init" {
-            println!("Initializing Journal!");
-            initialize_database(&config);
-            return;
-        }
-
-        let entries = Entry::get_entries(&config);
-        if let Some(mut entry) = get_entry(entries, &args[1]) {
-            entry.update_entry(&config);
-            open_file(&entry.path);
-        } else {
-            let entry = Entry::create_custom(&config, &args[1]);
-            entry.initialize(&config);
-            open_file(&entry.path);
-        }
-        
+        argument_handling(&args, &db);
         return;
     }
 
@@ -160,16 +168,16 @@ fn main() {
 
         match  selection {
             0 => {
-                last_accessed(&config);
+                last_accessed(&db);
             }
             1 => {
-                add_entry(&config);
+                add_entry(&db);
             },
             2 => {
-                edit_entry(&config);
+                edit_entry(&db);
             },
             3 => {
-                delete_entry(&config);
+                delete_entry(&db);
             },
             4 => {
                 return;

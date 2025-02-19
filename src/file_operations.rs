@@ -18,15 +18,6 @@ pub fn file_exists(filename: &str) -> bool {
     path.exists()
 }
 
-fn get_largest_number(conn: &Connection) -> u32 {
-    let mut stmt = conn.prepare("SELECT MAX(number) FROM entries").expect("Entries not found");
-    let largest_number: Option<u32> = stmt.query_row([], |row| row.get(0)).ok();
-    if let Some(number) = largest_number {
-        return number + 1;
-    }
-    1
-}
-
 pub fn initialize_file(filename: &str) {
     let current_date = get_time();
     let text = format!("{}\n\n=========================================================================================================\n", current_date);
@@ -127,9 +118,7 @@ impl Entry {
         })
     }
 
-    pub fn create_default(path_config: &PathConfig) -> Self {
-        let conn = Connection::open(&path_config.db).expect("Could not open DB");
-        let number = get_largest_number(&conn);
+    pub fn create_default(number: u32, path_config: &PathConfig) -> Self {
         let entry_date = chrono::offset::Local::now();
         let access_date = chrono::offset::Local::now();
         let name = format!("Entry_{}.txt", number);
@@ -158,16 +147,12 @@ impl Entry {
         }
     }
 
-    pub fn initialize(&self, path_config: &PathConfig) {
+    pub fn initialize(&self) {
         if file_exists(&self.path) {
             return;
         }
         // Write text to file
         initialize_file(&self.path);
-
-        // Add to db
-        self.publish_entry(path_config);
-
     }
 
     pub fn delete_entry(&mut self, path_config: &PathConfig) {
@@ -190,45 +175,6 @@ impl Entry {
             return val.to_rfc2822();
         }
         "".to_string()
-    }
-
-    pub fn get_entries(path_config: &PathConfig) -> Vec<Entry> {
-        let conn = Connection::open(&path_config.db).expect("Could not open database");
-        let mut stmt = conn.prepare("SELECT * FROM entries").expect("Could not select entries in DB");
-        let entries = stmt.query_map([], |row| {
-            Entry::build_from_row(&path_config.entry_dir, &row)
-        }).expect("Error reading entries");
-    
-        entries.into_iter()
-                .filter_map(|val| val.ok())
-                .collect::<Vec<Entry>>()
-    }
-
-    pub fn update_entry(&mut self, path_config: &PathConfig) {
-        let conn = Connection::open(&path_config.db).expect("Could not open DB");
-        self.access_date = Some(chrono::offset::Local::now().into());
-        if let Some(date) = self.access_date {
-            conn.execute(
-                "UPDATE entries SET access_date = ?1 WHERE name = ?2", 
-                (date.to_rfc2822(), self.name.clone()))
-                .expect("Could not update access_date in DB");
-        }
-    }
-
-    fn publish_entry(&self, path_config: &PathConfig) {
-        let conn = Connection::open(&path_config.db).expect("Could not open DB when adding entry");
-
-        let entry_string = self.entry_string();
-        let access_string = self.access_string();
-        if let Some(number) = self.number {
-            conn.execute(
-                "INSERT INTO entries (number, name, entry_date, access_date) VALUES (?1, ?2, ?3, ?4)", 
-                (number, self.name.clone(), entry_string, access_string)).expect("Could not add entry to DB");
-        } else {
-            conn.execute(
-                "INSERT INTO entries (name, entry_date, access_date) VALUES (?1, ?2, ?3)", 
-                (self.name.clone(), entry_string, access_string)).expect("Could not add entry to DB");
-        }
     }
 }
 
