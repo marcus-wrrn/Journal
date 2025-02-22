@@ -185,5 +185,40 @@ impl EntryDB {
         self.add_entry_to_db(&entry);
         entry
     }
+
+    pub fn add_tag(&self, tag_name: &str) -> Result<()> {
+        self.conn.execute("INSERT INTO tags (name) VALUES (?1)", (tag_name,))?;
+        Ok(())
+    }
+
+    fn tag_exists(&self, tag: &str) -> bool {
+        let mut stmt = self.conn.prepare("SELECT name FROM tags WHERE name = ?1").expect("Could not prepare tag check statement");
+        let val = stmt.query((tag,));
+        if let Ok(_) = val {
+            return true;
+        }
+        false
+
+    }
+
+    pub fn assign_tag(&self, entry: &Entry, tag: &str) -> Result<()> {
+        if !self.tag_exists(tag) {
+            self.add_tag(tag).expect("Could not add tag");
+        }
+        self.conn.execute(
+            "INSERT INTO entry_tags (tag, entry) VALUES (?1, ?2)", 
+            (tag, &entry.name))?;
+        
+        Ok(())
+    }
+
+    pub fn change_name(&self, entry: &mut Entry, new_name: &str) {
+        self.conn.execute(
+            "UPDATE entries SET name = ?1 WHERE name = ?2", 
+            (new_name, &entry.name)).expect("Could not update name");
+        
+        // Change the name of the entry
+        entry.name = new_name.to_string();
+    }
 }
 

@@ -20,7 +20,7 @@ pub fn file_exists(filename: &str) -> bool {
 
 pub fn initialize_file(filename: &str) {
     let current_date = get_time();
-    let text = format!("{}\n\n=========================================================================================================\n", current_date);
+    let text = format!("{}\n\n======================================================================================================================\n", current_date);
 
     let mut file = OpenOptions::new()
         .append(true)

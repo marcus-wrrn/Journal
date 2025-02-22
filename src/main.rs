@@ -1,4 +1,5 @@
-use std::env;
+use std::io::Write;
+use std::{env, io};
 use std::process::Command;
 use dialoguer::{theme::ColorfulTheme, Select};
 
@@ -9,6 +10,17 @@ use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort
 use database::{EntryDB, PathConfig};
 
 const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries_test";
+
+fn get_last_accessed(db: &EntryDB) -> Entry {
+    let entries = db.get_entries();
+
+    // Filter out old entries
+    let mut entries = entries.into_iter().filter(|e| e.access_date.is_some()).collect::<Vec<Entry>>();
+
+    sort_entries_by_date(&mut entries, true);
+    
+    entries.into_iter().last().expect("No valid entries found")
+}
 
 fn open_file(filepath: &str) {
     if !file_exists(filepath) {
@@ -69,6 +81,66 @@ fn edit_entry(db: &EntryDB) {
     
 }
 
+
+fn change_name(db: &EntryDB, entry: &mut Entry) {
+    loop {
+        let mut s = String::new();
+        let mut action = String::new();
+        print!("Enter new name for {}: ", &entry.name);
+        io::stdout().flush().unwrap();
+        io::stdin().read_line(&mut s).expect("Did not enter a correct string");
+        
+        if s.trim().is_empty() || s.trim() == "^[" {
+            return;
+        }
+
+        print!("Are you sure y/n (default y): ");
+        io::stdout().flush().unwrap();
+        io::stdin().read_line(&mut action).expect("Did not enter correct action");
+        
+        let action = action.trim();
+        if action.trim() == "y" || action.trim().is_empty() {
+            db.change_name(entry, &s.trim());
+            return;
+        }
+    }
+}
+
+fn update_entry_name(db: &EntryDB) {
+    let mut entries = db.get_entries();
+    if entries.is_empty() {
+        println!("No files to edit");
+        return;
+    }
+
+    let mut filenames = entries.iter().map(|e| e.name.clone()).collect::<Vec<String>>();
+    filenames.push("Exit".to_string());
+
+    let mut selection = 0;
+    loop {
+        selection = match Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("=============Change Name=============")
+            .default(selection)
+            .items(&filenames)
+            .interact_opt()
+        {
+            Ok(Some(choice)) => choice,
+            _ => return,
+        };
+        
+        if selection == filenames.len() - 1 {
+            return;
+        }
+
+        // Ensure we get a fresh mutable reference to the selected entry
+        if let Some(entry) = entries.get_mut(selection) {
+            change_name(db, entry);
+            filenames = entries.iter().map(|e| e.name.clone()).collect::<Vec<String>>();
+            filenames.push(String::from("Exit"));
+        }
+    }
+}
+
 fn delete_entry(db: &EntryDB) {
     let mut selection = 0;
     loop {
@@ -102,19 +174,7 @@ fn delete_entry(db: &EntryDB) {
 }
 
 fn last_accessed(db: &EntryDB) {
-    let entries = db.get_entries();
-
-    // Filter out old entries
-    let mut entries = entries.into_iter().filter_map(|e| {
-        if e.access_date.is_some() {
-            return Some(e);
-        }
-        None
-    }).collect::<Vec<Entry>>();
-
-    sort_entries_by_date(&mut entries, true);
-    let index = entries.len() - 1;
-    let entry = &mut entries[index];
+    let entry = &mut get_last_accessed(db);
     
     db.update_entry_access_date(entry);
     open_file(&entry.path);
@@ -155,7 +215,7 @@ fn main() {
     }
 
     let mut selection = 0; 
-    let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Exit"];  
+    let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Change Name", "Exit"];  
     loop {
         selection = match Select::with_theme(&ColorfulTheme::default())
             .with_prompt("=============Journal=============")
@@ -169,7 +229,7 @@ fn main() {
         match  selection {
             0 => {
                 last_accessed(&db);
-            }
+            },
             1 => {
                 add_entry(&db);
             },
@@ -180,6 +240,9 @@ fn main() {
                 delete_entry(&db);
             },
             4 => {
+                update_entry_name(&db);
+            },
+            5 => {
                 return;
             },
             _ => unreachable!(),
