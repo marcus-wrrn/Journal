@@ -213,12 +213,23 @@ impl EntryDB {
     }
 
     pub fn change_name(&self, entry: &mut Entry, new_name: &str) {
+        // Check if name already exists
+
+
         self.conn.execute(
             "UPDATE entries SET name = ?1 WHERE name = ?2", 
             (new_name, &entry.name)).expect("Could not update name");
         
+        // Update filepath
+        let path = self.config.get_entry_path(&entry.name);
+        let new_path = self.config.get_entry_path(&new_name);
+        std::fs::rename(path, new_path).expect("Could not rename filepath");
+        
         // Change the name of the entry
         entry.name = new_name.to_string();
+
+        // get entry path and rename the file
+
     }
 }
 

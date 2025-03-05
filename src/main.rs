@@ -9,6 +9,7 @@ pub mod database;
 use file_operations::{file_exists, initialize_file, sort_entries_by_number, sort_entries_by_date, get_entry, Entry};
 use database::{EntryDB, PathConfig};
 
+//const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries";
 const ENTRY_DIR: &str = "/home/marcuswrrn/Documents/entries_test";
 
 fn get_last_accessed(db: &EntryDB) -> Entry {
@@ -213,7 +214,7 @@ fn main() {
         argument_handling(&args, &db);
         return;
     }
-
+    println!("Hello World");
     let mut selection = 0; 
     let options = vec!["Last Accessed", "Add Entry", "Edit Entry", "Delete Entry", "Change Name", "Exit"];  
     loop {
